@@ -27,9 +27,11 @@ cd build
 3. Configure the project using CMake and compile:
 
 ```bash
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j
 ```
+
+Note: the default build type is `Debug`.
 
 ## Contributing
 

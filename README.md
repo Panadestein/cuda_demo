@@ -1,6 +1,6 @@
-# CUDA Fortran Minimum Working Example
+# CUDA Fortran Minimal Working Example
 
-This repository contains a minimum working example (MWE) demonstrating how to use CUDA with Fortran using the ISO_C_BINDING module. The project uses CMake as the build system.
+This repository contains a minimal working example (MWE) demonstrating how to use CUDA with Fortran using the ISO_C_BINDING module. The project uses CMake as the build system.
 
 ## Prerequisites
 

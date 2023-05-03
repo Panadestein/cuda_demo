@@ -1,13 +1,15 @@
-module my_cudacode_interface
-    use iso_c_binding
+module cuda_profile
+    use, intrinsic :: iso_c_binding
     implicit none
 
     ! CUDA interfaces
+    ! The IMPORT statement makes named entities from the
+    ! host scoping unit accessible in the interface body
     interface
-        subroutine launch_cuda_loop(data, N) bind(C)
+        subroutine launch_cuda_loop(data, n) bind(C)
             import :: c_double, c_int
             real(c_double), dimension(*), intent(inout) :: data
-            integer(c_int), value :: N
+            integer(c_int), value :: n
         end subroutine launch_cuda_loop
 
         subroutine launch_cuda_dgemm(m, n, k, A, B, C) bind(C)
@@ -45,13 +47,13 @@ module my_cudacode_interface
         !> The loop is executed on the CPU.
         !>
         !> @param[inout] data: A one-dimensional array of real numbers (double precision) to be modified.
-        !> @param[in] N: The size of the input data array.
-        subroutine cpu_loop(data, N)
+        !> @param[in] n: The size of the input data array.
+        subroutine cpu_loop(data, n)
            real(c_double), dimension(:), intent(inout) :: data
-           integer, intent(in) :: N
+           integer, intent(in) :: n
            integer :: i
 
-           do i = 1, N
+           do i = 1, n
                data(i) = data(i) + 1.0
            end do
        end subroutine cpu_loop
@@ -89,10 +91,9 @@ module my_cudacode_interface
            elapsed_time_gpu = elapsed_time_gpu - start_time
 
            ! Compare the results and print the execution times
-           print *, "Accuracy comparison:"
            do concurrent (i = 1:n_loop)
                if (abs(data_cpu(i) - data_gpu(i)) > accuracy) then
-                   print *, "Vecotr mismatch at index ", i, ":", data_cpu(i), "vs", data_gpu(i)
+                   print *, "Vector mismatch at index ", i, ":", data_cpu(i), "vs", data_gpu(i)
                end if
            end do
            print *, "Loop execution time (CPU):", elapsed_time_cpu, "seconds"
@@ -121,6 +122,7 @@ module my_cudacode_interface
            real(c_double), dimension(k_mat * n_mat)  :: B_GPU
            real(c_double), dimension(m_mat * n_mat)  :: C_GPU
            real(c_double)                            :: alpha, beta
+
            ! For BLAS
            real(c_double), dimension(m_mat, k_mat)   :: A_CPU
            real(c_double), dimension(k_mat, n_mat)   :: B_CPU
@@ -149,7 +151,6 @@ module my_cudacode_interface
            elapsed_time_gpu = elapsed_time_gpu - start_time
 
            ! Compare the results and print the execution times
-           print *, "Accuracy comparison:"
            do j = 1, n_mat
               do i = 1, m_mat
                  if (abs(C_CPU(i, j) - C_GPU(i + (j - 1) * m_mat)) > accuracy) then
@@ -162,23 +163,23 @@ module my_cudacode_interface
 
        end subroutine profile_matrix
 
-end module my_cudacode_interface
+end module cuda_profile
 
 program main
-    use my_cudacode_interface, only: profile_loop, profile_matrix
+    use cuda_profile, only: profile_loop, profile_matrix
     implicit none
     integer :: n_loop, m_mat, n_mat, k_mat
 
-    ! Matrices and loop sizes
-    n_loop = 1e8
+    ! Matrix and loop sizes
     m_mat = 150
     n_mat = 1000
     k_mat = 200
+    n_loop = 1e8
 
     ! Loop profiling
     call profile_loop(n_loop)
 
-    ! DGEMM profiling
+    ! Matrix multiplication profiling
     call profile_matrix(m_mat, n_mat, k_mat)
 
 end program main

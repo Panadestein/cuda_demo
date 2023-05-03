@@ -3,7 +3,7 @@
 #include <iostream>
 
 extern "C" {
-    void launch_cuda_loop(double *data, int N);
+    void launch_cuda_loop(double *data, int n);
     void launch_cuda_dgemm(int m, int n, int k, double *A, double *B, double *C);
 }
 
@@ -15,11 +15,11 @@ extern "C" {
  * increments the corresponding element of the data array by 1.0.
  *
  * @param data Pointer to the input data array (on the device).
- * @param N Size of the input data array.
+ * @param n Size of the input data array.
  */
-__global__ void sum_loop_kernel(double *data, int N) {
+__global__ void sum_loop_kernel(double *data, int n) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N) {
+    if (idx < n) {
         data[idx] += 1.0;
     }
 }
@@ -32,20 +32,20 @@ __global__ void sum_loop_kernel(double *data, int N) {
  * results back to the host, and frees the device memory.
  *
  * @param data Pointer to the input data array (on the host).
- * @param N Size of the input data array.
+ * @param n Size of the input data array.
  */
-void launch_cuda_loop(double *data, int N) {
+void launch_cuda_loop(double *data, int n) {
     double *d_data; // Copy of the array on the device
-    cudaMalloc((void **)&d_data, N * sizeof(double));
-    cudaMemcpy(d_data, data, N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc((void **)&d_data, n * sizeof(double));
+    cudaMemcpy(d_data, data, n * sizeof(double), cudaMemcpyHostToDevice);
 
     int blockSize = 256; // Should be a multiple of 32
-    int gridSize = (N + blockSize - 1) / blockSize;
+    int gridSize = (n + blockSize - 1) / blockSize;
 
     // Launches the sum_loop_kernel with the specified grid size and block size
-    sum_loop_kernel<<<gridSize, blockSize>>>(d_data, N);
+    sum_loop_kernel<<<gridSize, blockSize>>>(d_data, n);
 
-    cudaMemcpy(data, d_data, N * sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(data, d_data, n * sizeof(double), cudaMemcpyDeviceToHost);
     cudaFree(d_data);
 }
 

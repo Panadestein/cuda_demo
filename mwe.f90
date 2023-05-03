@@ -102,7 +102,7 @@ module cuda_profile
 
        !> @brief Profiles and compares the execution times of matrix multiplication on CPU and GPU.
        !>
-       !> This subroutine performs matrix multiplication using the BLAS `dgemm` subroutine on the
+       !> This subroutine performs matrix multiplication using `matmul` and the BLAS `dgemm` subroutine on the
        !> CPU and the cuBLAS wrapper `launch_cuda_dgemm` on the GPU. It measures the execution
        !> times for both operations and compares the accuracy of the results.
        !> C := alpha * A * B + beta * C
@@ -110,13 +110,17 @@ module cuda_profile
        !> @param[in] m_mat: Number of rows in matrix A and matrix C.
        !> @param[in] n_mat: Number of columns in matrix B and matrix C.
        !> @param[in] k_mat: Number of columns in matrix A and number of rows in matrix B.
-       subroutine profile_matrix(m_mat, n_mat, k_mat)
-           integer, intent(in) :: m_mat, n_mat, k_mat
+       !> @param[in] k_mat: Number of columns in matrix A and number of rows in matrix B.
+       !> @param[in] rnd: Wheter to randomly initialize the matrices
+       subroutine profile_matrix(m_mat, n_mat, k_mat, rnd)
+           integer, intent(in)           :: m_mat, n_mat, k_mat
+           logical, optional, intent(in) :: rnd
 
            ! Internal variables
+           logical                                   :: random_matrices
            integer                                   :: i, j
-           real(c_double)                            :: start_time, elapsed_time_cpu,&
-                                                        elapsed_time_gpu
+           real(c_double)                            :: start_time, elapsed_time_blas,&
+                                                        elapsed_time_matmul, elapsed_time_cublas
            ! For cuBLAS
            real(c_double), dimension(m_mat * k_mat)  :: A_GPU
            real(c_double), dimension(k_mat * n_mat)  :: B_GPU
@@ -127,39 +131,64 @@ module cuda_profile
            real(c_double), dimension(m_mat, k_mat)   :: A_CPU
            real(c_double), dimension(k_mat, n_mat)   :: B_CPU
            real(c_double), dimension(m_mat, n_mat)   :: C_CPU
+           real(c_double), dimension(m_mat, n_mat)   :: C_CPU_MATMUL
 
            ! Initialize matrices
-           A_GPU = [(i * 1.0, i = 1, m_mat * k_mat)]
-           B_GPU = [(i * 2.0, i = 1, k_mat * n_mat)]
+           random_matrices = .true.
+           if ( present(rnd) ) then
+              random_matrices = rnd
+           end if
+
+           if ( random_matrices ) then
+              call random_number(A_GPU)
+              call random_number(B_GPU)
+           else
+              A_GPU = [(i * real(1.0, c_double), i = 1, m_mat * k_mat)]
+              B_GPU = [(i * real(2.0, c_double), i = 1, k_mat * n_mat)]
+           end if
+
            A_CPU = reshape(A_GPU, [m_mat, k_mat])
            B_CPU = reshape(B_GPU, [k_mat, n_mat])
-           C_CPU = 0.0
-           C_GPU = 0.0
+           C_CPU = real(0.0, c_double)
+           C_CPU_MATMUL = real(0.0, c_double)
+           C_GPU = real(0.0, c_double)
+
+           ! Run matmul
+           call cpu_time(start_time)
+           C_CPU_MATMUL = matmul(A_CPU, B_CPU)
+           call cpu_time(elapsed_time_matmul)
+           elapsed_time_matmul = elapsed_time_matmul - start_time
 
            ! Run BLAS
-           alpha = 1.0
-           beta = 0.0
+           alpha = real(1.0, c_double)
+           beta = real(0.0, c_double)
            call cpu_time(start_time)
            call dgemm('N', 'N', m_mat, n_mat, k_mat, alpha, A_CPU, m_mat, B_CPU, k_mat, beta, C_CPU, m_mat)
-           call cpu_time(elapsed_time_cpu)
-           elapsed_time_cpu = elapsed_time_cpu - start_time
+           call cpu_time(elapsed_time_blas)
+           elapsed_time_blas = elapsed_time_blas - start_time
 
            ! Run cuBLAS
            call cpu_time(start_time)
            call launch_cuda_dgemm(m_mat, n_mat, k_mat, A_GPU, B_GPU, C_GPU)
-           call cpu_time(elapsed_time_gpu)
-           elapsed_time_gpu = elapsed_time_gpu - start_time
+           call cpu_time(elapsed_time_cublas)
+           elapsed_time_cublas = elapsed_time_cublas - start_time
 
            ! Compare the results and print the execution times
            do j = 1, n_mat
               do i = 1, m_mat
+                 if (abs(C_CPU(i, j) - C_CPU_MATMUL(i, j)) > accuracy) then
+                    print *, "Matrix mismatch (BLAS/matmul) at index (", i, ",", j, "):",&
+                     C_CPU(i, j), "vs", C_CPU_MATMUL(i, j)
+                 end if
                  if (abs(C_CPU(i, j) - C_GPU(i + (j - 1) * m_mat)) > accuracy) then
-                    print *, "Matrix mismatch at index (", i, ",", j, "):", C_CPU(i, j), "vs", C_GPU(i + (j - 1) * m_mat)
+                    print *, "Matrix mismatch (BLAS/cuBLAS) at index (", i, ",", j, "):",&
+                     C_CPU(i, j), "vs", C_GPU(i + (j - 1) * m_mat)
                  end if
               end do
            end do
-           print *, "Matrix multiplication execution time (CPU):", elapsed_time_cpu, "seconds"
-           print *, "Matrix multiplication execution time (GPU):", elapsed_time_gpu, "seconds"
+           print *, "Matrix multiplication execution time (CPU-MATMUL):", elapsed_time_matmul, "seconds"
+           print *, "Matrix multiplication execution time (CPU-BLAS):", elapsed_time_blas, "seconds"
+           print *, "Matrix multiplication execution time (GPU):", elapsed_time_cublas, "seconds"
 
        end subroutine profile_matrix
 
@@ -171,10 +200,10 @@ program main
     integer :: n_loop, m_mat, n_mat, k_mat
 
     ! Matrix and loop sizes
-    m_mat = 150
-    n_mat = 1000
-    k_mat = 200
-    n_loop = 1e8
+    m_mat = 1000
+    n_mat = 5000
+    k_mat = 1000
+    n_loop = 1000000
 
     ! Loop profiling
     call profile_loop(n_loop)

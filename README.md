@@ -14,7 +14,7 @@ This repository contains a minimal working example (MWE) demonstrating how to us
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/cuda_fortran_mwe.git
+git clone https://github.com/Panadestein/cuda_demo.git
 cd cuda_demo
 ```
 2. Create a build directory and navigate to it:

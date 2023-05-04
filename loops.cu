@@ -39,7 +39,7 @@ void launch_cuda_loop(double *data, int n) {
     cudaMalloc((void **)&d_data, n * sizeof(double));
     cudaMemcpy(d_data, data, n * sizeof(double), cudaMemcpyHostToDevice);
 
-    int blockSize = 256; // Should be a multiple of 32
+    int blockSize = 256; // Should be a multiple of the warp size = 32, never less than 4 * 32 = 128
     int gridSize = (n + blockSize - 1) / blockSize;
 
     // Launches the sum_loop_kernel with the specified grid size and block size
